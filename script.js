@@ -1,8 +1,12 @@
 const ORA_CONFIG = window.ORA_CONFIG || {};
 
 function normalizeHash(hash) {
-  if (!hash || hash === "#top" || hash === "#pourquoi") {
+  if (!hash || hash === "#top" || hash === "#pour-qui" || hash === "#pourquoi") {
     return "#association";
+  }
+
+  if (hash === "#adhesion" || hash === "#contact") {
+    return "#rejoindre";
   }
 
   return hash;
@@ -46,8 +50,7 @@ function initNavigation() {
           return;
         }
 
-        const activeSectionId = `#${visibleEntries[0].target.id}`;
-        setActiveLink(activeSectionId);
+        setActiveLink(`#${visibleEntries[0].target.id}`);
       },
       {
         rootMargin: "-25% 0px -55% 0px",
@@ -119,7 +122,7 @@ function serializeFormData(form) {
 
 function validateForm(form) {
   let isValid = true;
-  const fields = form.querySelectorAll("input, textarea");
+  const fields = form.querySelectorAll("input, textarea, select");
 
   fields.forEach((field) => {
     const fieldIsValid = field.checkValidity();
@@ -132,29 +135,18 @@ function validateForm(form) {
   return isValid;
 }
 
-function buildMailToLink(formType, data) {
+function buildMailToLink(data) {
   const recipient = ORA_CONFIG.recipientEmail || "associationora@outlook.fr";
-  const subject = formType === "adhesion" ? "Demande d'adhésion ORA" : "Message de contact ORA";
-
-  const lines =
-    formType === "adhesion"
-      ? [
-          `Nom : ${data.nom || ""}`,
-          `Prénom : ${data.prenom || ""}`,
-          `Date de naissance : ${data.dateNaissance || ""}`,
-          `Adresse : ${data.adresse || ""}`,
-          `Téléphone : ${data.telephone || ""}`,
-          `Email : ${data.email || ""}`,
-          `Montant cotisation : ${data.montantCotisation || ""}`,
-          `Message : ${data.message || ""}`,
-        ]
-      : [
-          `Nom : ${data.nom || ""}`,
-          `Téléphone : ${data.telephone || ""}`,
-          `Email : ${data.email || ""}`,
-          "",
-          `${data.message || ""}`,
-        ];
+  const subject = "Demande ORA";
+  const lines = [
+    `Type de demande : ${data.demandeType || ""}`,
+    `Nom : ${data.nom || ""}`,
+    `Prénom : ${data.prenom || ""}`,
+    `Téléphone : ${data.telephone || ""}`,
+    `Email : ${data.email || ""}`,
+    "",
+    `Message : ${data.message || ""}`,
+  ];
 
   return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
 }
@@ -190,7 +182,6 @@ function initForms() {
 
   forms.forEach((form) => {
     const statusElement = form.querySelector(".form-status");
-    const formType = form.dataset.formType;
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -209,20 +200,20 @@ function initForms() {
 
       const data = serializeFormData(form);
       const endpoint =
-        formType === "adhesion" ? ORA_CONFIG.adhesionEndpoint : ORA_CONFIG.contactEndpoint;
+        ORA_CONFIG.oraEndpoint || ORA_CONFIG.contactEndpoint || ORA_CONFIG.adhesionEndpoint;
 
       try {
         if (endpoint) {
           await postToEndpoint(endpoint, data);
           updateStatus(statusElement, "Votre message a bien été envoyé.", "success");
           form.reset();
-          form.querySelectorAll("input, textarea").forEach((field) => {
+          form.querySelectorAll("input, textarea, select").forEach((field) => {
             field.removeAttribute("aria-invalid");
           });
           return;
         }
 
-        window.location.href = buildMailToLink(formType, data);
+        window.location.href = buildMailToLink(data);
         updateStatus(
           statusElement,
           "Votre messagerie va s'ouvrir avec le message prérempli.",
@@ -237,8 +228,14 @@ function initForms() {
       }
     });
 
-    form.querySelectorAll("input, textarea").forEach((field) => {
+    form.querySelectorAll("input, textarea, select").forEach((field) => {
       field.addEventListener("input", () => {
+        if (field.hasAttribute("aria-invalid")) {
+          markFieldState(field, field.checkValidity());
+        }
+      });
+
+      field.addEventListener("change", () => {
         if (field.hasAttribute("aria-invalid")) {
           markFieldState(field, field.checkValidity());
         }
