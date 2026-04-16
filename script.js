@@ -1,29 +1,64 @@
 const ORA_CONFIG = window.ORA_CONFIG || {};
 
-const pageMap = {
-  accueil: "index.html",
-  "pour-qui": "pour-qui.html",
-  activites: "activites.html",
-  pourquoi: "pourquoi-nous-rejoindre.html",
-  adhesion: "adhesion.html",
-  contact: "contact.html",
-};
+function normalizeHash(hash) {
+  if (!hash || hash === "#top" || hash === "#pourquoi") {
+    return "#association";
+  }
+
+  return hash;
+}
 
 function initNavigation() {
-  const currentPage = document.body.dataset.page;
-  const navLinks = document.querySelectorAll(".main-nav a");
-  const targetPath = pageMap[currentPage];
-
-  navLinks.forEach((link) => {
-    if (link.getAttribute("href") === targetPath) {
-      link.setAttribute("aria-current", "page");
-    }
-  });
-
   const menuToggle = document.querySelector(".menu-toggle");
   const nav = document.querySelector(".main-nav");
+  const navLinks = Array.from(document.querySelectorAll('.main-nav a[href^="#"]'));
+  const sections = navLinks
+    .map((link) => document.querySelector(link.getAttribute("href")))
+    .filter(Boolean);
 
-  if (!menuToggle || !nav) {
+  if (!nav || !navLinks.length) {
+    return;
+  }
+
+  const setActiveLink = (hash) => {
+    const currentHash = normalizeHash(hash || window.location.hash || "#association");
+
+    navLinks.forEach((link) => {
+      if (link.getAttribute("href") === currentHash) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
+
+  setActiveLink();
+  window.addEventListener("hashchange", () => setActiveLink());
+
+  if ("IntersectionObserver" in window && sections.length) {
+    const sectionObserver = new IntersectionObserver(
+      (entries) => {
+        const visibleEntries = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+        if (!visibleEntries.length) {
+          return;
+        }
+
+        const activeSectionId = `#${visibleEntries[0].target.id}`;
+        setActiveLink(activeSectionId);
+      },
+      {
+        rootMargin: "-25% 0px -55% 0px",
+        threshold: [0.2, 0.35, 0.55],
+      }
+    );
+
+    sections.forEach((section) => sectionObserver.observe(section));
+  }
+
+  if (!menuToggle) {
     return;
   }
 
@@ -99,26 +134,23 @@ function validateForm(form) {
 
 function buildMailToLink(formType, data) {
   const recipient = ORA_CONFIG.recipientEmail || "associationora@outlook.fr";
-  const subject =
-    formType === "adhesion"
-      ? "Demande d'adhesion ORA"
-      : "Message de contact ORA";
+  const subject = formType === "adhesion" ? "Demande d'adhésion ORA" : "Message de contact ORA";
 
   const lines =
     formType === "adhesion"
       ? [
           `Nom : ${data.nom || ""}`,
-          `Prenom : ${data.prenom || ""}`,
+          `Prénom : ${data.prenom || ""}`,
           `Date de naissance : ${data.dateNaissance || ""}`,
           `Adresse : ${data.adresse || ""}`,
-          `Telephone : ${data.telephone || ""}`,
+          `Téléphone : ${data.telephone || ""}`,
           `Email : ${data.email || ""}`,
           `Montant cotisation : ${data.montantCotisation || ""}`,
           `Message : ${data.message || ""}`,
         ]
       : [
           `Nom : ${data.nom || ""}`,
-          `Telephone : ${data.telephone || ""}`,
+          `Téléphone : ${data.telephone || ""}`,
           `Email : ${data.email || ""}`,
           "",
           `${data.message || ""}`,
@@ -199,7 +231,7 @@ function initForms() {
       } catch (error) {
         updateStatus(
           statusElement,
-          "L'envoi n'a pas abouti. Vous pouvez nous écrire directement à associationora@outlook.fr.",
+          "L'envoi n'a pas abouti. Vous pouvez écrire directement à associationora@outlook.fr.",
           "error"
         );
       }
